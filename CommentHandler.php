@@ -220,7 +220,7 @@ Class CommentHandler {
         // If you have more parents than the depth specified, return the value specified by the business logic.
         $depth = count($parents) - $this->$comment_level - 1;
         if ($depth > 0) { 
-            $parents[$depth]; 
+            $parent_id = $parents[$depth]; 
         }
         return $parent_id;
     }
@@ -231,6 +231,7 @@ Class CommentHandler {
      * This helper function checks if a comment is a valid comment.
      * Encapsulate validation logic. You might have other routes that inserts data.
      * 
+     * @param $comment object
      * @return boolean
      */
     public function isValidComment($comment) {
@@ -256,6 +257,7 @@ Class CommentHandler {
      * For now, just add mysql escape.
      * Will be able to expand as needed.
      * 
+     * @param $var Some db string to be santized.
      * @return string
      */
     public function sanatize($var) {
