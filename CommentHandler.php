@@ -259,6 +259,6 @@ Class CommentHandler {
      * @return string
      */
     public function sanatize($var) {
-        return mysql_real_escape_string($var)
+        return mysql_real_escape_string($var);
     }
 }
