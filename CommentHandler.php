@@ -136,6 +136,7 @@ Class CommentHandler {
         $db = $this->getDB();
         $sql = "SELECT * FROM comments_table where parent_id=$parent_id ORDER BY create_date DESC;";
         $result = mysqli_query($sql, $db);
+        $db->close();
         return $result;
     }
 
@@ -160,26 +161,33 @@ Class CommentHandler {
                 // Insert the comment.
                 // Use a prepared statement to avoid the sql injection.
                 $stmt = $db->prepare("INSERT INTO comments_table (parent_id, name, comment, create_date) VALUES (?, ?, ?, ?)");
+                if (!$stmt) {return "Prepare statement failed";};
                 $stmt->bind_param("isss", $comment['parent_id'], $comment['name'], $comment['comment'], NOW());
+                if (!$stmt) {return "Bind statement failed";};
                 // Unsure of the date being a string in the case of prepared statements.
                 $stmt->execute();
                 // get the primary key of the inserted value
+                // checking if the id was positive. A basic check.
                 if ($db->insert_id >= 0) {
                     // Return the comment row of what you inserted.
                     $id = $db->insert_id;
                     $sql = "SELECT * FROM comments_table where id=" . $id . ";";
                     $result = mysqli_query($sql, $db);
                     $comment = mysqli_result($result, 0);
+                    $db->close();
                     return $comment;
+                } else {
+                    $db->close();
+                    return 'Prepred statemet failed to execute.';
                 }
             } catch(Exception $e) {
-                // Should return the fail.
+                $db->close();
                 return 'save failed';
             }
         } else {
+            $db->close();
             return 'Parent ID not found.';
         }
-
     }
 
     /**
@@ -222,6 +230,7 @@ Class CommentHandler {
             }
         } else {
             // A valid parent id was not found on the initial check, just bail.
+            $db->close();
             return null;
         }
 
@@ -231,6 +240,8 @@ Class CommentHandler {
         if ($depth > 0) { 
             $parent_id = $parents[$depth]; 
         }
+
+        $db->close();
         return $parent_id;
     }
 
@@ -254,7 +265,7 @@ Class CommentHandler {
         // Probably should have a check of the size of the fields. You don't want to have the end user to dump gigs of info into the db.
         if (!$comment['name'] && !$comment['name'] && strlen($comment['name']) < 255) {$valid=false;}
         if ($valid==true && !$comment['parent_id'] && strlen($comment['parent_id']) < 64) {$valid=false;}
-        if ($valid==true && !$comment['comment'] && strlen($comment['comment']) < 6000) {$valid=false;}
+        if ($valid==true && !$comment['comment'] && strlen($comment['comment']) < 2000) {$valid=false;}
 
         return $valid;
     }

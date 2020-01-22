@@ -80,8 +80,9 @@ class Form {
             if (res) {
                 // Wait for the post to complete before resetting it.
                 try {
+                    // I'm assuming if the post request fails, the promise will be rejected.
                     let res = await HttpClient.post('https://api.example.com/form/', this.responses);
-                    // Might want to check is response actually posted properly.
+                    // If not, we can check here on the res variable.
                     this.resetForm();
                     return "Form submitted";
                 } catch(err) {
