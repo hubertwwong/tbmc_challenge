@@ -64,19 +64,14 @@ Class CommentHandler {
     /**
      * Get a DB connection.
      * 
-     * From what I'm reading, shouldn't mysqli or PDO be used instead of mysql?
-     * Interface seems different so probably would be a breaking change.
+     * Using mysqli instead of mysql
      * 
-     * My opinion is you probably probably want to mysqli or PDO.
-     * You probably want to have a connection pool instead of constructing the connections for each query.
-     * I think the db connection object should probably be in a separate file. 
-     * 
-     * @returns db object or error.
+     * @return db object or null.
      */
     public function getDB() {
         $db = new mysql($this->url, $this->username, $this->password);
-        if (!$db) {
-            // Add retry logic or error logic
+        if ($db->connect_errno) {
+            return null;
         }
         return $db;
     }
@@ -112,7 +107,7 @@ Class CommentHandler {
         // Runs the query.
         // For any results, try to get replies using the same function using DFS.
         $result = $this->getCommentsWithParent($id);
-        while ($row = mysql_fetch_assoc($result)) {
+        while ($row = mysqli_fetch_assoc($result)) {
             $replies = $this->getCommentsDFS($row['id'], $cur_depth+1);
             $comment['replies'] = $replies;
             $comments[] = $comment;
@@ -132,7 +127,7 @@ Class CommentHandler {
     public function getCommentsWithParent($parent_id) {
         $db = $this->getDB();
         $sql = "SELECT * FROM comments_table where parent_id=$parent_id ORDER BY create_date DESC;";
-        $result = mysql_query($sql, $db);
+        $result = mysqli_query($sql, $db);
         return $result;
     }
 
@@ -145,7 +140,7 @@ Class CommentHandler {
      * @return string or array
      */
     public function addComment($comment) {
-        if (!$this->isValidComment($comment)) {return "save failed. comment not valid.";}
+        if (!$this->isValidComment($comment)) {return "Save failed. Comment did not pass validation.";}
         $db = $this->getDB();
         
         // Flatten out the parent id if needed. Also checks for to see if the parent id is valid in the first place.
@@ -153,25 +148,31 @@ Class CommentHandler {
 
         // You want to check for a valid parent id before saving.
         if ($comment['parent_id'] != null) {
-            // Not great since you can still have an sql inejction.
-            // I think you are suppose to use the mysqli prepared statement or PDO extension.
-            $sql = "INSERT INTO comments_table (parent_id, name, comment, create_date) VALUES (" . $this->sanatize($comment['parent_id']) . ", " . $this->sanatize($comment['name']) . ", " . $this->sanatize($comment['comment']) . ", NOW())";
-            $result = mysql_query($sql, $db);
-            if($result) {
-                $id = mysql_insert_id();
-                $sql = "SELECT * FROM comments_table where id=" . $id . ";";
-                $result = mysql_query($sql, $db);
-                $comment = mysql_result($result, 0);
-                return $comment;
-            } else {
+            try {
+                // Insert the comment.
+                // Use a prepared statement to avoid the sql injection.
+                $stmt = $db->prepare("INSERT INTO comments_table (parent_id, name, comment, create_date) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param("isss", $comment['parent_id'], $comment['name'], $comment['comment'], NOW());
+                // Unsure of the date being a string in the case of prepared statements.
+                $stmt->execute();
+                // get the primary key of the inserted value
+                if ($db->insert_id >= 0) {
+                    // Return the comment row of what you inserted.
+                    $id = $db->insert_id;
+                    $sql = "SELECT * FROM comments_table where id=" . $id . ";";
+                    $result = mysqli_query($sql, $db);
+                    $comment = mysqli_result($result, 0);
+                    return $comment;
+                }
+            } catch(Exception $e) {
+                // Should return the fail.
                 return 'save failed';
             }
+        } else {
+            return 'Parent ID not found.';
         }
+
     }
-    // sql inejction.
-    // also assuming the value are valid.
-    // are you assuming that the parent comment exist too?
-    // 2 levels of enforcement.
 
     /**
      * getValidCommentParentID
@@ -190,7 +191,7 @@ Class CommentHandler {
         $parents = array(); // store the list of parents_ids
         
         // Follow the chain of parent comments to the top.
-        $result = mysql_query($sql, $db);
+        $result = mysqli_query($sql, $db);
         if ($result) {
             // check if the results returns anything.
             while($result) {
@@ -209,7 +210,7 @@ Class CommentHandler {
                 }
 
                 // run the query again.
-                $result = mysql_query($sql, $db);
+                $result = mysqli_query($sql, $db);
             }
         } else {
             // A valid parent id was not found on the initial check, just bail.
@@ -248,19 +249,5 @@ Class CommentHandler {
         if ($valid==true && !$comment['comment'] && strlen($comment['comment']) < 6000) {$valid=false;}
 
         return $valid;
-    }
-
-    /**
-     * sanatize
-     * 
-     * Encapsulate santization logic.
-     * For now, just add mysql escape.
-     * Will be able to expand as needed.
-     * 
-     * @param $var Some db string to be santized.
-     * @return string
-     */
-    public function sanatize($var) {
-        return mysql_real_escape_string($var);
     }
 }
