@@ -32,6 +32,7 @@ Class CommentHandler {
     private $username;
     private $password;
     private $comment_depth;
+    private $db_name;
 
     /**
      * Sets up the db connection.
@@ -43,6 +44,7 @@ Class CommentHandler {
         $this->url = 'testserver';
         $this->username = 'testuser';
         $this->password = 'testpassword';
+        $this->db_name = 'testdb';
         $this->comment_depth = 2;
         // Change the comment nesting level if needed.
 
@@ -59,17 +61,21 @@ Class CommentHandler {
         if ($_ENV["COMMENT_DEPTH"]) {
             $this->commet_depth = $_ENV["COMMENT_DEPTH"];
         }
+        if ($_ENV["DB_NAME"]) {
+            $this->db_name = $_ENV["DB_NAME"];
+        }
     }
 
     /**
      * Get a DB connection.
      * 
      * Using mysqli instead of mysql
+     * One thing i'm not sure if the db_name is required. I didn't see one on the starter code but when I was reading the docs. I notice a db name being a param.
      * 
      * @return db object or null.
      */
     public function getDB() {
-        $db = new mysql($this->url, $this->username, $this->password);
+        $db = new mysqli($this->url, $this->username, $this->password, $this->db_name);
         if ($db->connect_errno) {
             return null;
         }
@@ -84,7 +90,9 @@ Class CommentHandler {
      * @return array
      */
     public function getComments() {
-        return $this->getCommentsDFS(0, 0);
+        // Intial arguments are 0 for the root comments.
+        // 0 for the depth.
+        return $this->getCommentsDFS(0, 1);
     }
 
     /**
